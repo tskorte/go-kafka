@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	key  = flag.String("key", "key-a", "Sets the key of the writer")
-	body = flag.String("body", "body-message", "Sets the body of the message")
+	address = flag.String("address", "localhost:9092", "Sets the kafka address")
+	topic   = flag.String("topic", "my-topic", "Sets the topic of the reader")
+	key     = flag.String("key", "key-a", "Sets the key of the writer")
 )
 
 func init() {
@@ -30,8 +31,8 @@ func main() {
 	l.Debug("*         cmd/ctrl+c to quit              *")
 	l.Debug("*******************************************")
 	config := kafka.WriterConfig{
-		Brokers:  []string{"localhost:9092"},
-		Topic:    "my-topic",
+		Brokers:  []string{*address},
+		Topic:    *topic,
 		Balancer: &kafka.LeastBytes{},
 	}
 	sw := utils.StdinWriter{
