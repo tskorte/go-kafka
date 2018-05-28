@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 
@@ -20,12 +21,26 @@ type MessageReader struct {
 	Rc chan Message
 }
 
+func NewMessageReader(kr *kafka.Reader, rc chan Message) MessageReader {
+	return MessageReader{
+		Kr: kr,
+		Rc: rc,
+	}
+}
+
 func (mr MessageReader) Setup() {
 	l.Debug("Ready, reading messages!")
+	go mr.readMessages()
+	mr.handleExit()
+}
+
+func (mr *MessageReader) readMessages() {
 	mr.handleMessage()
 	for {
 		m, err := mr.Kr.ReadMessage(context.Background())
-		if err != nil {
+		if err == io.EOF {
+			break
+		} else if err != nil {
 			fmt.Printf("Error reading messages: %s", err)
 			break
 		}
@@ -49,10 +64,27 @@ func (mh *MessageReader) handleMessage() {
 }
 
 func (mr *MessageReader) handleExit() {
+	mr.waitForExit()
+	mr.initiateShutdown()
+}
+
+func (mr *MessageReader) waitForExit() {
 	exitSignal := make(chan os.Signal, 1)
 	signal.Notify(exitSignal, os.Interrupt)
 	<-exitSignal
-	l.Debug("Received interrupt - shutting down kafka reader")
-	mr.Kr.Close()
+}
+
+func (mr *MessageReader) initiateShutdown() {
+	l.Debugf("Initiating shutdown...")
+	fine := make(chan bool)
+	go mr.closeKafkaReader(fine)
+	<-fine
+	fmt.Println(' ')
 	l.Debug("Kafka reader closed, see ya!")
+}
+
+func (mr *MessageReader) closeKafkaReader(fine chan bool) {
+	l.Debugf("Closing kafka reader...")
+	mr.Kr.Close()
+	fine <- true
 }
